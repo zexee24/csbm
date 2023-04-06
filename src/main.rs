@@ -137,21 +137,35 @@ fn parse_ingredients(element: Element, cache: HashMap<String, FoodItem>)
         .map(|e| e.to_owned())
         .filter(|e| e.classes.contains(&"crafting_stat_bg".to_string()))
         .collect();
-    let t = csb.iter().map(|e| {
-        e.children.iter().find_map(|e1| {
+    let t: Vec<(usize, String, String)> = csb.iter().filter_map(|e| {
+        e.children.iter().find(|e1| {
             e1.element().unwrap().attributes.get("style").map(|e2| {
-                if e2.clone()
+                e2.clone()
                     == Some("text-align:left; padding-top:6px; margin-left:9px;".to_string())
-                {
-                    Some(e1)
-                } else {
-                    None
-                }
-            })
+                
+            }).unwrap_or(false)
         })
-    });
+    }).filter_map(|e1| e1.element()).map(|e1| {
+        let mut name = None;
+        let mut href = None;
+        let mut amount = None;
+        for c in e1.children.iter().map(|e2| e2.element().unwrap()){
+            if let Some(n) = c.attributes.get("title").map(|a| a.clone().unwrap()){
+                name = Some(n)
+            }
+            if let Some(n) = c.attributes.get("href").map(|a| a.clone().unwrap()){
+                href = Some(n)
+            }
+            if let Some(n) = c.attributes.get("style"){
+                if *n == Some("float:right; color: white; padding-right: 8px;font-size:20px;padding-top:20px;".to_string()){
+                    amount = c.children.iter().find_map(|n2| n2.text()).map(|s| s.parse::<usize>())
+                }
+            }
+        }
+        (amount.unwrap().unwrap(), name.unwrap(), href.unwrap()).to_owned()
+    }).collect();
 
-    println!("{:?}", t);
+    println!("{:#?}", t);
 }
 
 #[cfg(test)]
