@@ -6,22 +6,22 @@ use food_item::FoodItem;
 
 static BASE_URL: &str = "https://starbounder.org";
 fn main() {
-    let mut fil: Vec<FoodItem>= vec![];
+    let mut fil: Vec<FoodItem> = vec![];
     let mut cache: HashMap<String, FoodItem> = HashMap::new();
     let fl = get_food_list().unwrap();
     let l = fl.len();
-    for (n, child) in fl.iter().enumerate(){
+    for (n, child) in fl.iter().enumerate() {
         println!("Processing item {n}/{l}");
         let a = &child.attributes;
         let name = a.get("title").unwrap().as_ref().unwrap();
         let href = a.get("href").unwrap().as_ref().unwrap();
-        let item = match cache.get(name){
+        let item = match cache.get(name) {
             Some(i) => i.clone(),
             None => {
-                let (fi,c) = get_item_info(name, href, cache).unwrap();
+                let (fi, c) = get_item_info(name, href, cache).unwrap();
                 cache = c;
                 fi
-            },
+            }
         };
         fil.push(item);
     }
@@ -35,9 +35,7 @@ fn get_food_list() -> Option<Vec<Element>> {
         .unwrap();
     let dom = Dom::parse(&b).unwrap();
     if let Some(i) = dom.children.first() {
-        return match parse_childs_until(i.element().unwrap().clone(), |e| {
-            e.name == *"ul"
-        }) {
+        return match parse_childs_until(i.element().unwrap().clone(), |e| e.name == *"ul") {
             Some(e) => Some(
                 e.children
                     .iter()
@@ -93,31 +91,33 @@ fn get_item_info(
                 e.classes.contains(&"vector_info_footer".to_string())
             })?;
             let (ingredients, c) = match parse_childs_until(elem, |e| {
-                    e.attributes
-                        .get("style")
-                        .map(|s| s.clone() == Some("width:300px;".to_string()))
-                        .unwrap_or(false)
-                        && e.children
-                            .iter()
-                            .find(|&ec1| {
-                                ec1.element()
-                                    .map(|ec2| {
-                                        ec2.classes
-                                            .iter()
-                                            .any(|ec3| ec3 == "crafting_top_bg")
-                                    })
-                                    .unwrap_or(false)
-                            })
-                            .unwrap()
-                            .element()
-                            .unwrap()
-                            .children
-                            .iter()
-                            .any(|ec2| ec2.element().unwrap().children.iter().any(|ec3| ec3.text() == Some("INGREDIENTS")))
-                }) {
-                    Some(i) => parse_ingredients(i, cache.clone()),
-                    None => (vec![], cache.clone()),
-                };
+                e.attributes
+                    .get("style")
+                    .map(|s| s.clone() == Some("width:300px;".to_string()))
+                    .unwrap_or(false)
+                    && e.children
+                        .iter()
+                        .find(|&ec1| {
+                            ec1.element()
+                                .map(|ec2| ec2.classes.iter().any(|ec3| ec3 == "crafting_top_bg"))
+                                .unwrap_or(false)
+                        })
+                        .unwrap()
+                        .element()
+                        .unwrap()
+                        .children
+                        .iter()
+                        .any(|ec2| {
+                            ec2.element()
+                                .unwrap()
+                                .children
+                                .iter()
+                                .any(|ec3| ec3.text() == Some("INGREDIENTS"))
+                        })
+            }) {
+                Some(i) => parse_ingredients(i, cache.clone()),
+                None => (vec![], cache.clone()),
+            };
             cache = c;
             let p = find_price(v)?;
             let fi = FoodItem {
@@ -141,9 +141,10 @@ fn find_price(e: Element) -> Option<usize> {
     None
 }
 
-fn parse_ingredients(element: Element,mut cache: HashMap<String, FoodItem>)
-    -> (Vec<(usize, FoodItem)>, HashMap<String, FoodItem>)
-{
+fn parse_ingredients(
+    element: Element,
+    mut cache: HashMap<String, FoodItem>,
+) -> (Vec<(usize, FoodItem)>, HashMap<String, FoodItem>) {
     let csb: Vec<Element> = element
         .children
         .iter()
@@ -156,7 +157,6 @@ fn parse_ingredients(element: Element,mut cache: HashMap<String, FoodItem>)
             e1.element().unwrap().attributes.get("style").map(|e2| {
                 e2.clone()
                     == Some("text-align:left; padding-top:6px; margin-left:9px;".to_string())
-                
             }).unwrap_or(false)
         })
     }).filter_map(|e1| e1.element()).map(|e1| {
@@ -178,16 +178,17 @@ fn parse_ingredients(element: Element,mut cache: HashMap<String, FoodItem>)
         }
         (amount.unwrap().unwrap(), name.unwrap(), href.unwrap())
     }).collect();
-    let fil: Vec<(usize, FoodItem)> = pil.iter().map(|item| {
-        match cache.get(&item.1){
-            Some(f) => (item.0,f.clone()),
+    let fil: Vec<(usize, FoodItem)> = pil
+        .iter()
+        .map(|item| match cache.get(&item.1) {
+            Some(f) => (item.0, f.clone()),
             None => {
                 let (fi, c) = get_item_info(&item.1, &item.2, cache.clone()).unwrap();
                 cache = c;
-                (item.0 , fi)
-            },
-        }
-    }).collect();
+                (item.0, fi)
+            }
+        })
+        .collect();
     (fil, cache)
 }
 
