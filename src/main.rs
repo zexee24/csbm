@@ -79,7 +79,32 @@ fn get_item_info(
             let v = parse_childs_until(elem.clone(), |e| {
                 e.classes.contains(&"vector_info_footer".to_string())
             })?;
-            let ingredients = parse_ingredients(parse_childs_until(elem, |e| e.attributes.get("style").map(|s| s.clone() == Some("width:300px;".to_string())).unwrap_or(false))? && and, cache.clone());
+            let ingredients = parse_ingredients(
+                parse_childs_until(elem, |e| {
+                    e.attributes
+                        .get("style")
+                        .map(|s| s.clone() == Some("width:300px;".to_string()))
+                        .unwrap_or(false)
+                        && e.children
+                            .iter()
+                            .find(|&ec1| {
+                                ec1.element()
+                                    .map(|ec2| {
+                                        ec2.classes
+                                            .iter()
+                                            .any(|ec3| ec3 == "crafting_top_bg")
+                                    })
+                                    .unwrap_or(false)
+                            })
+                            .unwrap()
+                            .element()
+                            .unwrap()
+                            .children
+                            .iter()
+                            .any(|ec2| ec2.element().unwrap().children.iter().any(|ec3| ec3.text() == Some("INGREDIENTS")))
+                })?,
+                cache.clone(),
+            );
             let p = find_price(v)?;
             let fi = FoodItem {
                 name: name.clone(),
@@ -115,7 +140,9 @@ fn parse_ingredients(element: Element, cache: HashMap<String, FoodItem>)
     let t = csb.iter().map(|e| {
         e.children.iter().find_map(|e1| {
             e1.element().unwrap().attributes.get("style").map(|e2| {
-                if e2.clone() == Some("text-align:left; padding-top:6px; margin-left:9px;".to_string()) {
+                if e2.clone()
+                    == Some("text-align:left; padding-top:6px; margin-left:9px;".to_string())
+                {
                     Some(e1)
                 } else {
                     None
@@ -138,6 +165,5 @@ mod tests {
         let (fi, _) = get_item_info(n.clone(), url, HashMap::new()).unwrap();
         assert_eq!(fi.name, n);
         assert_eq!(fi.price, 40);
-
     }
 }
