@@ -1,8 +1,9 @@
-use html_parser::{Dom, Element};
+use html_parser::{Dom, Element, Node};
 use std::collections::hash_map::HashMap;
 mod food_item;
 
 use food_item::FoodItem;
+use std::fs::write;
 
 static BASE_URL: &str = "https://starbounder.org";
 fn main() {
@@ -24,38 +25,54 @@ fn main() {
             }
         };
         fil.push(item);
+        write("data.json", serde_json::to_string(&fil).unwrap()).unwrap();
     }
-    println!("{:#?}", fil);
+}
+fn get_food_href() -> Vec<(String, String)>{
+    get_food_list().unwrap().iter().map(|element| -> (String, String) {
+
+    }).collect()
 }
 
 fn get_food_list() -> Option<Vec<Element>> {
-    let b = reqwest::blocking::get("https://starbounder.org/Category:Food")
+    let b = reqwest::blocking::get("https://starbounder.org/Food")
         .unwrap()
         .text()
         .unwrap();
     let dom = Dom::parse(&b).unwrap();
     if let Some(i) = dom.children.first() {
-        return match parse_childs_until(i.element().unwrap().clone(), |e| e.name == *"ul") {
-            Some(e) => Some(
-                e.children
-                    .iter()
-                    .map(|el| {
-                        el.element()
-                            .unwrap()
-                            .to_owned()
-                            .children
-                            .first()
-                            .unwrap()
-                            .element()
-                            .unwrap()
-                            .to_owned()
-                    })
-                    .collect(),
-            ),
-            None => None,
-        };
+        return parse_childs_until(i.element().unwrap().clone(), |e| e.id == Some("navbox".to_owned())).map(|e| {
+                return_matches(
+                Node::Element(e)
+            , |e1| 
+            match e1.element(){
+                Some(e2) => {
+                    e2.classes.contains(&"navboxlist".to_string())
+                },
+                None => false,
+            },
+            vec![]
+            ).iter().map(|e1| e1.element().unwrap().to_owned()).collect()
+        });
     }
     None
+}
+
+fn return_matches(d: Node, predicate: fn(&Node) -> bool, original: Vec<Node>) -> Vec<Node>{
+    let mut v = original;
+    if predicate(&d) {
+        v.push(d);
+        return v
+    }
+    match d.element(){
+        Some(e) => {
+            for c in e.children.clone(){
+                v = return_matches(c, predicate, v.clone());
+            }
+            v
+        },
+        None => v,
+    }
 }
 
 fn parse_childs_until(d: Element, predicate: fn(&Element) -> bool) -> Option<Element> {
@@ -204,5 +221,10 @@ mod tests {
         assert_eq!(fi.name, n);
         assert_eq!(fi.price, 40);
         println!("{:#?}", c)
+    }
+    #[test]
+    fn test_get_food_list(){
+        let l = get_food_list().unwrap();
+        println!("{:#?}", l.first().unwrap())
     }
 }

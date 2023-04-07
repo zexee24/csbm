@@ -94,6 +94,8 @@ version = "0.1.0"
 dependencies = [
  "html_parser",
  "reqwest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
