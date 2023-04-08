@@ -9,13 +9,10 @@ static BASE_URL: &str = "https://starbounder.org";
 fn main() {
     let mut fil: Vec<FoodItem> = vec![];
     let mut cache: HashMap<String, FoodItem> = HashMap::new();
-    let fl = get_food_list().unwrap();
+    let fl = get_food_href();
     let l = fl.len();
-    for (n, child) in fl.iter().enumerate() {
+    for (n, (name, href)) in fl.iter().enumerate() {
         println!("Processing item {n}/{l}");
-        let a = &child.attributes;
-        let name = a.get("title").unwrap().as_ref().unwrap();
-        let href = a.get("href").unwrap().as_ref().unwrap();
         let item = match cache.get(name) {
             Some(i) => i.clone(),
             None => {
@@ -28,10 +25,16 @@ fn main() {
         write("data.json", serde_json::to_string(&fil).unwrap()).unwrap();
     }
 }
-fn get_food_href() -> Vec<(String, String)>{
-    get_food_list().unwrap().iter().map(|element| -> (String, String) {
-
-    }).collect()
+fn get_food_href() -> Vec<(String, String)> {
+    get_food_list()
+        .unwrap()
+        .iter()
+        .map(|element| -> (String, String) {
+            let name = element.attributes.get("title").unwrap().as_ref().unwrap();
+            let href = element.attributes.get("href").unwrap().as_ref().unwrap();
+            (name.to_string(), href.to_string())
+        })
+        .collect()
 }
 
 fn get_food_list() -> Option<Vec<Element>> {
@@ -41,36 +44,41 @@ fn get_food_list() -> Option<Vec<Element>> {
         .unwrap();
     let dom = Dom::parse(&b).unwrap();
     if let Some(i) = dom.children.first() {
-        return parse_childs_until(i.element().unwrap().clone(), |e| e.id == Some("navbox".to_owned())).map(|e| {
-                return_matches(
-                Node::Element(e)
-            , |e1| 
-            match e1.element(){
-                Some(e2) => {
-                    e2.classes.contains(&"navboxlist".to_string())
+        return parse_childs_until(i.element().unwrap().clone(), |e| {
+            e.id == Some("navbox".to_owned())
+        })
+        .map(|e| {
+            return_matches(
+                Node::Element(e),
+                |e1| match e1.element() {
+                    Some(e2) => e2.classes.contains(&"navboxlist".to_string()),
+                    None => false,
                 },
-                None => false,
-            },
-            vec![]
-            ).iter().map(|e1| e1.element().unwrap().to_owned()).collect()
+                vec![],
+            )
+            .iter()
+            .flat_map(|e1| e1.element().unwrap().children.to_owned())
+            .filter(|e1| e1.element().is_some())
+            .map(|e1| e1.element().unwrap().to_owned())
+            .collect()
         });
     }
     None
 }
 
-fn return_matches(d: Node, predicate: fn(&Node) -> bool, original: Vec<Node>) -> Vec<Node>{
+fn return_matches(d: Node, predicate: fn(&Node) -> bool, original: Vec<Node>) -> Vec<Node> {
     let mut v = original;
     if predicate(&d) {
         v.push(d);
-        return v
+        return v;
     }
-    match d.element(){
+    match d.element() {
         Some(e) => {
-            for c in e.children.clone(){
+            for c in e.children.clone() {
                 v = return_matches(c, predicate, v.clone());
             }
             v
-        },
+        }
         None => v,
     }
 }
@@ -223,8 +231,16 @@ mod tests {
         println!("{:#?}", c)
     }
     #[test]
-    fn test_get_food_list(){
+    #[ignore = "just prints"]
+    fn test_get_food_list() {
         let l = get_food_list().unwrap();
-        println!("{:#?}", l.first().unwrap())
+        println!("length is {:?}", l.len());
+        println!("{:#?}", l.first().unwrap());
+    }
+    #[test]
+    #[ignore = "just prints"]
+    fn test_get_food_href() {
+        let l = get_food_href();
+        println!("{:#?}", l)
     }
 }
