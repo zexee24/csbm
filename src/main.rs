@@ -1,59 +1,89 @@
 use html_parser::{Dom, Element, Node};
 use std::collections::hash_map::HashMap;
+mod crating;
 mod food_item;
 
-use food_item::FoodItem;
-use std::fs::write;
-use std::fs::read_to_string;
 use clap::Parser;
+use crating::CraftInventory;
+use food_item::FoodItem;
+use std::fs::read_to_string;
+use std::fs::write;
 use std::path::PathBuf;
 
 static BASE_URL: &str = "https://starbounder.org";
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Args{
-
+struct Args {
     #[arg(short, long)]
     datafile: PathBuf,
     #[arg(short, long, default_value_t = false)]
     update: bool,
-    #[arg(short, long, default_value_t = false)]
-    analyze: bool,
     #[arg(short, long)]
-    resultfile: PathBuf
-
+    optimize: Option<PathBuf>,
+    #[arg(short, long)]
+    resultfile: Option<PathBuf>,
 }
 
-fn main() -> Result<(), &'static str>{
+fn main() -> Result<(), &'static str> {
     let args = Args::parse();
-    if !args.update && !args.analyze{
-        return Err("not instructed to do anything, you must either update or analyze")
+    if !args.update && args.optimize.is_none() {
+        return Err("not instructed to do anything, you must either update or analyze");
     }
-    let data = match args.update{
+    let data = match args.update {
         true => update_data(args.datafile),
         false => {
             let raw = read_to_string(args.datafile).map_err(|_| "could find the file")?;
             serde_json::from_str(&raw).map_err(|_| "could not parse the file")?
-        },
+        }
     };
-    if args.analyze{
-        let mut res = data.iter().map(|f| (f.name.clone(), f.net_value())).collect::<Vec<(String, usize)>>();
-        res.sort_by_key(|e| e.1);
-        res.reverse();
-        write(args.resultfile, serde_json::to_string_pretty(&res).map_err(|_| "Failed to serialize results")?).map_err(|_| "failed to write file")?;
+    if let Some(p) = args.optimize {
+        let raw = read_to_string(p).map_err(|_| "unable to read inventory file")?;
+        let inv: Vec<InvnetoryItem> =
+            serde_json::from_str(&raw).map_err(|_| "failed to parse inventory")?;
+        let inv_avl: Vec<String> = inv.iter().map(|i| i.1.clone()).collect();
+        let viable_data: Vec<&FoodItem> = data.iter().filter(|f| f.canmaker(&inv_avl)).collect();
+        let inv_mod: Vec<(i32, FoodItem)> = inv
+            .iter()
+            .map(|m| {
+                let i = viable_data
+                    .iter()
+                    .find(|&&f| m.1 == f.name)
+                    .unwrap()
+                    .to_owned();
+                (m.0 as i32, i.to_owned())
+            })
+            .collect();
+        let mut ci = CraftInventory::new(inv_mod);
+        let original_value = ci.get_value();
+        let mut v = viable_data.clone();
+        v.sort_by(|a,b| a.get_eff().partial_cmp(&b.get_eff()).unwrap());
+        v.reverse();
+        //v.sort_by_key(|f| f.net_value());
+        //v.reverse();
+        let recipes = v.iter().filter(|r| !r.ingredients.is_empty());
+        for recipe in recipes {
+            //println!("Recipe = {:?}, value {:?}", recipe.name, recipe.get_eff());
+            while let Ok(r) = ci.try_craft(recipe) {
+                ci = r;
+            }
+        }
+        let new_value = ci.get_value();
+        println!("Improved value by {:#?}. Total value is {:?}", new_value - original_value, new_value)
     }
     Ok(())
 }
 
-fn update_data(p: PathBuf) -> Vec<FoodItem>{
-    let mut fil: Vec<FoodItem> = vec![];
+#[derive(serde::Deserialize)]
+struct InvnetoryItem(usize, String);
+
+fn update_data(p: PathBuf) -> Vec<FoodItem> {
     let mut cache: HashMap<String, FoodItem> = HashMap::new();
     let fl = get_food_href();
     let l = fl.len();
     for (n, (name, href)) in fl.iter().enumerate() {
         println!("Processing item {n}/{l}");
-        let item = match cache.get(name) {
+        let _item = match cache.get(name) {
             Some(i) => i.clone(),
             None => {
                 let (fi, c) = get_item_info(name, href, cache).unwrap();
@@ -61,10 +91,10 @@ fn update_data(p: PathBuf) -> Vec<FoodItem>{
                 fi
             }
         };
-        fil.push(item);
     }
-    write(p, serde_json::to_string(&fil).unwrap()).unwrap();
-    fil
+    let v: Vec<FoodItem> = cache.values().map(|t| t.to_owned()).collect();
+    write(p, serde_json::to_string(&v).unwrap()).unwrap();
+    v
 }
 
 fn get_food_href() -> Vec<(String, String)> {
