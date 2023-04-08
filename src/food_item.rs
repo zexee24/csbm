@@ -48,7 +48,7 @@ impl FoodItem {
             })
         }
     }
-    pub fn get_eff(&self) -> f64{
-        (self.price as f64)/(self.get_ingredient_value() as f64)
+    pub fn get_eff(&self) -> f64 {
+        (self.price as f64) / (self.get_ingredient_value() as f64)
     }
 }

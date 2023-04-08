@@ -57,10 +57,8 @@ fn main() -> Result<(), &'static str> {
         let mut ci = CraftInventory::new(inv_mod);
         let original_value = ci.get_value();
         let mut v = viable_data.clone();
-        v.sort_by(|a,b| a.get_eff().partial_cmp(&b.get_eff()).unwrap());
+        v.sort_by(|a, b| a.get_eff().partial_cmp(&b.get_eff()).unwrap());
         v.reverse();
-        //v.sort_by_key(|f| f.net_value());
-        //v.reverse();
         let recipes = v.iter().filter(|r| !r.ingredients.is_empty());
         for recipe in recipes {
             //println!("Recipe = {:?}, value {:?}", recipe.name, recipe.get_eff());
@@ -69,7 +67,11 @@ fn main() -> Result<(), &'static str> {
             }
         }
         let new_value = ci.get_value();
-        println!("Improved value by {:#?}. Total value is {:?}", new_value - original_value, new_value)
+        println!(
+            "Improved value by {:#?}. Total value is {:?}",
+            new_value - original_value,
+            new_value
+        )
     }
     Ok(())
 }
