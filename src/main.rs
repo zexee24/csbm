@@ -4,9 +4,49 @@ mod food_item;
 
 use food_item::FoodItem;
 use std::fs::write;
+use std::fs::read_to_string;
+use clap::Parser;
+use std::path::PathBuf;
 
 static BASE_URL: &str = "https://starbounder.org";
-fn main() {
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args{
+
+    #[arg(short, long)]
+    datafile: PathBuf,
+    #[arg(short, long, default_value_t = false)]
+    update: bool,
+    #[arg(short, long, default_value_t = false)]
+    analyze: bool,
+    #[arg(short, long)]
+    resultfile: PathBuf
+
+}
+
+fn main() -> Result<(), &'static str>{
+    let args = Args::parse();
+    if !args.update && !args.analyze{
+        return Err("not instructed to do anything, you must either update or analyze")
+    }
+    let data = match args.update{
+        true => update_data(args.datafile),
+        false => {
+            let raw = read_to_string(args.datafile).map_err(|_| "could find the file")?;
+            serde_json::from_str(&raw).map_err(|_| "could not parse the file")?
+        },
+    };
+    if args.analyze{
+        let mut res = data.iter().map(|f| (f.name.clone(), f.net_value())).collect::<Vec<(String, usize)>>();
+        res.sort_by_key(|e| e.1);
+        res.reverse();
+        write(args.resultfile, serde_json::to_string_pretty(&res).map_err(|_| "Failed to serialize results")?).map_err(|_| "failed to write file")?;
+    }
+    Ok(())
+}
+
+fn update_data(p: PathBuf) -> Vec<FoodItem>{
     let mut fil: Vec<FoodItem> = vec![];
     let mut cache: HashMap<String, FoodItem> = HashMap::new();
     let fl = get_food_href();
@@ -22,9 +62,11 @@ fn main() {
             }
         };
         fil.push(item);
-        write("data.json", serde_json::to_string(&fil).unwrap()).unwrap();
     }
+    write(p, serde_json::to_string(&fil).unwrap()).unwrap();
+    fil
 }
+
 fn get_food_href() -> Vec<(String, String)> {
     get_food_list()
         .unwrap()
