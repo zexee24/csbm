@@ -54,26 +54,31 @@ fn main() -> Result<(), &'static str> {
                 (m.0 as i32, i.to_owned())
             })
             .collect();
-        let mut ci = CraftInventory::new(inv_mod);
-        let original_value = ci.get_value();
-        let mut v = viable_data.clone();
-        v.sort_by(|a, b| a.get_eff().partial_cmp(&b.get_eff()).unwrap());
-        v.reverse();
-        let recipes = v.iter().filter(|r| !r.ingredients.is_empty());
-        for recipe in recipes {
-            //println!("Recipe = {:?}, value {:?}", recipe.name, recipe.get_eff());
-            while let Ok(r) = ci.try_craft(recipe) {
-                ci = r;
-            }
+        let v = viable_data.clone();
+        let recipes: Vec<_> = v.iter().filter(|&r| !r.ingredients.is_empty()).map(|&r| r.to_owned()).collect();
+        let mut optimal_hist: Vec<FoodItem>= vec![]; 
+        for r in recipes.clone(){
+            optimal_hist = find_optimal(optimal_hist, &recipes, inv_mod.clone())
         }
-        let new_value = ci.get_value();
-        println!(
-            "Improved value by {:#?}. Total value is {:?}",
-            new_value - original_value,
-            new_value
-        )
+        println!("optimal is: {:#?}", optimal_hist.iter().map(|e| e.name.to_owned()).collect::<Vec<_>>());
+        println!("with increase of {:?}", CraftInventory::new(inv_mod).get_value())
     }
     Ok(())
+}
+fn find_optimal(optimal_hist: Vec<FoodItem>, recipes: &Vec<FoodItem>, inv: Vec<(i32, FoodItem)>) -> Vec<FoodItem>{
+        let ci = CraftInventory::new(inv);
+        let mut optimal_temp: Vec<FoodItem> = vec![];
+        let mut max = 0;
+        for r in recipes {
+            let mut o = optimal_hist.clone();
+            o.push(r.clone());
+            let val = ci.test_order(&o);
+            if val>max{
+                max = val;
+                optimal_temp = o;
+            }
+        }
+        optimal_temp
 }
 
 #[derive(serde::Deserialize)]
